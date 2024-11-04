@@ -7,7 +7,7 @@ from tensorflow.keras.preprocessing.image import img_to_array
 import os
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for cross-origin requests
+CORS(app, resources={r"/predict": {"origins": "http://localhost:5173"}})  # Enable CORS for cross-origin requests
 
 # Load your model (ensure the model is in the same directory or provide the correct path)
 MODEL_PATH = "saved_model.h5"
