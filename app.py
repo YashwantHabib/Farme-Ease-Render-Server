@@ -35,6 +35,10 @@ def load_and_preprocess_image(image):
     image = np.expand_dims(image, axis=0)  # Add batch dimension
     return image
 
+@app.route('/')
+def index():
+    return "Welcome to the Disease Detection API!"
+
 @app.route("/predict", methods=["POST"])
 def predict():
     if "file" not in request.files:
