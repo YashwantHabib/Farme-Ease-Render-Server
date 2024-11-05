@@ -41,30 +41,47 @@ def index():
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    print("Received request at /predict")  # Debugging statement
+    
+    # Check if file part exists in the request
     if "file" not in request.files:
+        print("No file part in the request")  # Debugging statement
         return jsonify({"error": "No file part in the request"}), 400
 
     file = request.files["file"]
-    print("Received File: ",file)
+    print("Received file:", file.filename)  # Debugging statement
+
     if file.filename == "":
+        print("No file selected for uploading")  # Debugging statement
         return jsonify({"error": "No file selected for uploading"}), 400
 
     try:
         # Read the image and preprocess it
         image = np.frombuffer(file.read(), np.uint8)
+        print("Image buffer read successfully")  # Debugging statement
+
         image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+        if image is None:
+            print("Failed to decode image")  # Debugging statement
+            return jsonify({"error": "Failed to decode image"}), 400
+
         processed_image = load_and_preprocess_image(image)
+        print("Image preprocessed successfully")  # Debugging statement
 
         # Make prediction
         predictions = model.predict(processed_image)
+        print("Prediction completed")  # Debugging statement
+
         predicted_class = np.argmax(predictions, axis=1)[0]
         confidence = float(predictions[0][predicted_class])
+        print(f"Predicted class: {predicted_class}, Confidence: {confidence}")  # Debugging statement
 
         # Get the class label and confidence
         predicted_label = CLASS_NAMES[predicted_class]
         return jsonify({"label": predicted_label, "confidence": confidence}), 200
 
     except Exception as e:
+        print("Error during prediction:", str(e))  # Debugging statement
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
