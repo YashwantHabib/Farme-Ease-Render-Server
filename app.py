@@ -45,6 +45,7 @@ def predict():
         return jsonify({"error": "No file part in the request"}), 400
 
     file = request.files["file"]
+    print("Received File: ",file)
     if file.filename == "":
         return jsonify({"error": "No file selected for uploading"}), 400
 
