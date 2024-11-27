@@ -4,24 +4,10 @@ import tensorflow as tf
 import numpy as np
 import psutil  # For memory tracking
 import os
+from PIL import Image
 
 app = Flask(__name__)
-CORS(app, resources={r"/predict": {"origins": "http://localhost:5173"}})
-
-# Load model and define classes
-MODEL_PATH = "saved_model.h5"
-model = tf.keras.models.load_model(MODEL_PATH)
-CLASS_NAMES = ["Apple___Apple_scab", "Apple___Black_rot", "Apple___Cedar_apple_rust", "Apple___healthy",
-               "Blueberry___healthy", "Cherry_(including_sour)___healthy", "Cherry_(including_sour)___Powdery_mildew",
-               "Corn_(maize)___Cercospora_leaf_spot Gray", "Corn_(maize)___Common_rust_", "Corn_(maize)___healthy",
-               "Corn_(maize)___Northern_Leaf_Blight", "Grape___Black_rot", "Grape___Esca_(Black_Measles)",
-               "Grape___healthy", "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)", "Orange___Haunglongbing_(Citrus_greening)",
-               "Peach___Bacterial_spot", "Peach___healthy", "Pepper,_bell___Bacterial_spot", "Pepper,_bell___healthy",
-               "Potato___Early_blight", "Potato___healthy", "Potato___Late_blight", "Raspberry___healthy",
-               "Soybean___healthy", "Squash___Powdery_mildew", "Strawberry___healthy", "Strawberry___Leaf_scorch",
-               "Tomato___Bacterial_spot", "Tomato___Early_blight", "Tomato___healthy", "Tomato___Late_blight",
-               "Tomato___Leaf_Mold", "Tomato___Septoria_leaf_spot", "Tomato___Spider_mites Two-spotted_spider_mite",
-               "Tomato___Target_Spot", "Tomato___Tomato_mosaic_virus", "Tomato___Tomato_Yellow_Leaf_Curl_Virus"]
+CORS(app, resources={r"/predict": {"origins": "*"}})
 
 # Function to print current RAM usage
 def print_ram_usage(stage):
@@ -29,44 +15,90 @@ def print_ram_usage(stage):
     ram_usage = process.memory_info().rss / (1024 * 1024)
     print(f"[{stage}] RAM usage: {ram_usage:.2f} MB")
 
-@app.route("/predict", methods=["POST"])
+
+print_ram_usage("Start of script")
+
+# Load model and define classes
+MODEL_PATH = "saved_model.h5"
+print_ram_usage("Before loading model")
+model = tf.keras.models.load_model(MODEL_PATH)
+print_ram_usage("After loading model")
+CLASS_LABELS = {
+    0: "Apple - Apple Scab",
+    1: "Apple - Black Rot",
+    2: "Apple - Cedar Apple Rust",
+    3: "Apple - Healthy",
+    4: "Blueberry - Healthy",
+    5: "Cherry (including sour) - Healthy",
+    6: "Cherry (including sour) - Powdery Mildew",
+    7: "Corn (maize) - Cercospora Leaf Spot (Gray)",
+    8: "Corn (maize) - Common Rust",
+    9: "Corn (maize) - Healthy",
+    10: "Corn (maize) - Northern Leaf Blight",
+    11: "Grape - Black Rot",
+    12: "Grape - Esca (Black Measles)",
+    13: "Grape - Healthy",
+    14: "Grape - Leaf Blight (Isariopsis Leaf Spot)",
+    15: "Orange - Huanglongbing (Citrus Greening)",
+    16: "Peach - Bacterial Spot",
+    17: "Peach - Healthy",
+    18: "Pepper (bell) - Bacterial Spot",
+    19: "Pepper (bell) - Healthy",
+    20: "Potato - Early Blight",
+    21: "Potato - Healthy",
+    22: "Potato - Late Blight",
+    23: "Raspberry - Healthy",
+    24: "Soybean - Healthy",
+    25: "Squash - Powdery Mildew",
+    26: "Strawberry - Healthy",
+    27: "Strawberry - Leaf Scorch",
+    28: "Tomato - Bacterial Spot",
+    29: "Tomato - Early Blight",
+    30: "Tomato - Healthy",
+    31: "Tomato - Late Blight",
+    32: "Tomato - Leaf Mold",
+    33: "Tomato - Septoria Leaf Spot",
+    34: "Tomato - Spider Mites (Two-spotted Spider Mite)",
+    35: "Tomato - Target Spot",
+    36: "Tomato - Tomato Mosaic Virus",
+    37: "Tomato - Tomato Yellow Leaf Curl Virus",
+}
+
+
+
+
+
+def preprocess_image(image_path):
+    img = Image.open(image_path).resize((126, 126))  # Resize to the input size of the first Conv2D layer
+    img = np.array(img).astype('float32') / 255.0    # Normalize pixel values to [0, 1]
+    img = img.reshape(1, 126, 126, 3)                # Add batch dimension (1, height, width, channels)
+    return img
+
+@app.route('/predict', methods=['POST'])
 def predict():
-    print("Received request at /predict")
-    print_ram_usage("Before prediction")
-
     try:
-        # Get preprocessed image data from the request
-        data = request.json
-        if not data or "image" not in data:
-            return jsonify({"error": "No image data provided"}), 400
+        # Retrieve the uploaded file
+        file = request.files['file']
+        if not file:
+            return jsonify({"error": "No file uploaded"}), 400
 
-        # Convert the image data back into a numpy array
-        processed_image = np.array(data["image"], dtype=np.float32)
-        if len(processed_image.shape) == 3:  # Add batch dimension if necessary
-            processed_image = np.expand_dims(processed_image, axis=0)
+        # Preprocess the image
+        image_path = "temp.jpg"
+        file.save(image_path)
+        print_ram_usage("Before preprocessing data")
+        input_data = preprocess_image(image_path)
+        print_ram_usage("After preprocessing data")
+        # Make the prediction
+        print_ram_usage("Before making predictions")
+        prediction = model.predict(input_data)
+        print_ram_usage("After making predictions")
+        predicted_class = np.argmax(prediction, axis=1)[0]  # Get the index of the highest probability
+        predicted_label = CLASS_LABELS.get(predicted_class, "Unknown")
 
-        # Make prediction
-        predictions = model.predict(processed_image)
-        predicted_class = np.argmax(predictions, axis=1)[0]
-        confidence = float(predictions[0][predicted_class])
-
-        print(f"Predicted class index: {predicted_class}")
-        print(f"Confidence: {confidence}")
-        print(f"Number of classes: {len(CLASS_NAMES)}")
-
-        # Check if predicted_class is within CLASS_NAMES range
-        if predicted_class >= len(CLASS_NAMES):
-            print("Error: Predicted class index out of range")
-            return jsonify({"error": "Predicted class index out of range"}), 500
-
-        predicted_label = CLASS_NAMES[predicted_class]
-        print_ram_usage("After prediction")
-        return jsonify({"label": predicted_label, "confidence": confidence}), 200
+        return jsonify({"predicted_label": predicted_label})
 
     except Exception as e:
-        print("Error during prediction:", str(e))
         return jsonify({"error": str(e)}), 500
-
 
 
 if __name__ == "__main__":
